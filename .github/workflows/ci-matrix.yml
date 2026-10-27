@@ -1,22 +1,57 @@
-name: CI Build for Docker Action
+name: CI matrix demo
+
 on:
-  push:
-    branches: [ main ]
-    paths: [ hello-world-docker-action/** ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test-action:
-    runs-on: ubuntu-latest
+  build:
+    name: ${{ matrix.os }} / Node.js ${{ matrix.node }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        node: [ 22, 24 ]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3.3.0
+      - uses: actions/checkout@v7
 
-      - name: Run my own container action
-        id: hello-action
-        uses: ./hello-world-docker-action
+      - uses: actions/setup-node@v7
         with:
-          who-to-greet: '@wulfland'
+          node-version: ${{ matrix.node }}
 
-      - name: Output time set in the container
-        run: echo "The time was ${{ steps.hello-action.outputs.time }} when the action said hello"
+      - name: Cache demo data
+        uses: actions/cache@v6
+        with:
+          path: ~/.demo-cache
+          key: demo-${{ runner.os }}-node${{ matrix.node }}-v1
+          restore-keys: |
+            demo-${{ runner.os }}-
+
+      - name: Show runner and Node.js version
+        shell: bash
+        run: |
+          echo "Runner: $RUNNER_OS $RUNNER_ARCH, image $ImageOS $ImageVersion"
+          node --version
+          mkdir -p ~/.demo-cache
+          date > ~/.demo-cache/last-run.txt
+          echo "### ${{ matrix.os }} with Node.js ${{ matrix.node }} passed" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save build information
+        shell: bash
+        run: |
+          mkdir -p out
+          echo "Built on ${{ matrix.os }} with Node.js ${{ matrix.node }} at $(date)" > out/build-info.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-info-${{ matrix.os }}-node${{ matrix.node }}
+          path: out/
+          retention-days: 5
