@@ -16,3 +16,22 @@ jobs:
       - run: echo "Event ${{ github.event_name }} on ${{ github.ref }} by ${{ github.actor }}"
       - name: List files
         run: ls -la
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running tests..."
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - name: Use the environment secret
+        env:
+          API_KEY: ${{ secrets.PROD_API_KEY }}
+        run: echo "The API key is $API_KEY"
+      - run: echo "Deploying..."
